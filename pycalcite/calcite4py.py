@@ -54,7 +54,7 @@ def _get_system_classpath():
         logger.debug('CLASSPATH is empty')
         return []
     logger.debug('_get_system_classpath=%s' % classpath)
-    return classpath.split(';')
+    return classpath.split(os.pathsep)
 
 
 def startup_JVM(jar_paths=None):
@@ -65,7 +65,7 @@ def startup_JVM(jar_paths=None):
     if not jpype.isJVMStarted():
         jar_paths.extend(_get_system_classpath())
         uniq_jar = list(set(jar_paths))
-        class_path = '-Djava.class.path=' + ';'.join(uniq_jar)  # not ; but :
+        class_path = '-Djava.class.path=' + os.pathsep.join(uniq_jar)  # not ; but :
         jvm_args = [class_path, '-Dfile.encoding=UTF-8']
         jvm_path = jpype.getDefaultJVMPath()
         logger.debug('jpype.startJVM() with jvm_args=%s, jvm_path=%s' % (jvm_args, jvm_path))

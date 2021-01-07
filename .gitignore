@@ -1,0 +1,12 @@
+.idea
+*.iml
+test-output
+.metadata
+target
+.project
+.classpath
+.settings
+bin
+sdklog
+.build
+.dist

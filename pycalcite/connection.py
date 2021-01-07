@@ -40,7 +40,8 @@ class Connection(object):
         self.con_json_dct = kwargs.get('con_json_dict', {})
         self.lex_type = self.con_json_dct.get('lex', 'MYSQL')
         # self.conn = _build_connection(self.host, self.port, self.database, self.username, self.password)
-        del self.con_json_dct['lex']
+        if 'lex' in self.con_json_dct:
+            del self.con_json_dct['lex']
         self.conn = _build_connection(json.dumps(self.con_json_dct), self.lex_type)
         self._closed = False
         self._cursor = None
