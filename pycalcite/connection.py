@@ -56,9 +56,12 @@ class Connection(object):
             self.close()
 
     def close(self):
-        if not self._closed:
-            self.conn.close()
-        self._cursor.close()
+        try:
+            if not self._closed:
+                self.conn.close()
+            self._cursor.close()
+        except:
+            pass
         # stop_JVM()
         gc.collect()
         self._closed = True

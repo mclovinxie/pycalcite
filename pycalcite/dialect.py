@@ -20,7 +20,7 @@ from dateutil.parser import parse
 from decimal import Decimal
 
 
-class TDWHiveStringTypeBase(types.TypeDecorator):
+class HiveStringTypeBase(types.TypeDecorator):
     """Translates strings returned by Thrift into something else"""
     impl = types.String
 
@@ -28,7 +28,7 @@ class TDWHiveStringTypeBase(types.TypeDecorator):
         raise NotImplementedError("Writing to Hive not supported")
 
 
-class TDWHiveDate(TDWHiveStringTypeBase):
+class HiveDate(HiveStringTypeBase):
     """Translates date strings to date objects"""
     impl = types.DATE
 
@@ -52,7 +52,7 @@ class TDWHiveDate(TDWHiveStringTypeBase):
         return self.impl
 
 
-class TDWHiveTimestamp(TDWHiveStringTypeBase):
+class HiveTimestamp(HiveStringTypeBase):
     """Translates timestamp strings to datetime objects"""
     impl = types.TIMESTAMP
 
@@ -74,7 +74,7 @@ class TDWHiveTimestamp(TDWHiveStringTypeBase):
         return self.impl
 
 
-class TDWHiveDecimal(TDWHiveStringTypeBase):
+class HiveDecimal(HiveStringTypeBase):
     """Translates strings to decimals"""
     impl = types.DECIMAL
 
@@ -99,23 +99,23 @@ class TDWHiveDecimal(TDWHiveStringTypeBase):
         return self.impl
 
 
-class TDWHiveIdentifierPreparer(compiler.IdentifierPreparer):
+class HiveIdentifierPreparer(compiler.IdentifierPreparer):
     # Just quote everything to make things simpler / easier to upgrade
     reserved_words = UniversalSet()
 
     def __init__(self, dialect):
-        super(TDWHiveIdentifierPreparer, self).__init__(
+        super(HiveIdentifierPreparer, self).__init__(
             dialect,
             initial_quote='`',
         )
 
 
-class TDWHiveCompiler(SQLCompiler):
+class HiveCompiler(SQLCompiler):
     def visit_concat_op_binary(self, binary, operator, **kw):
         return "concat(%s, %s)" % (self.process(binary.left), self.process(binary.right))
 
     def visit_insert(self, *args, **kwargs):
-        result = super(TDWHiveCompiler, self).visit_insert(*args, **kwargs)
+        result = super(HiveCompiler, self).visit_insert(*args, **kwargs)
         # Massage the result into Hive's format
         #   INSERT INTO `pyhive_test_database`.`test_table` (`a`) SELECT ...
         #   =>
@@ -125,7 +125,7 @@ class TDWHiveCompiler(SQLCompiler):
         return re.sub(regex, r'\1 TABLE \2', result)
 
     def visit_column(self, *args, **kwargs):
-        result = super(TDWHiveCompiler, self).visit_column(*args, **kwargs)
+        result = super(HiveCompiler, self).visit_column(*args, **kwargs)
         dot_count = result.count('.')
         assert dot_count in (0, 1, 2), "Unexpected visit_column result {}".format(result)
         if dot_count == 2:
@@ -138,7 +138,7 @@ class TDWHiveCompiler(SQLCompiler):
         return 'length{}'.format(self.function_argspec(fn, **kw))
 
 
-class TDWHiveTypeCompiler(compiler.GenericTypeCompiler):
+class HiveTypeCompiler(compiler.GenericTypeCompiler):
     def visit_INTEGER(self, type_):
         return 'INT'
 
@@ -183,14 +183,14 @@ _type_map = {
     'double': types.Float,
     'string': types.String,
     'varchar': types.String,
-    'date': TDWHiveDate,
-    'timestamp': TDWHiveTimestamp,
+    'date': HiveDate,
+    'timestamp': HiveTimestamp,
     'binary': types.String,
     'array': types.String,
     'map': types.String,
     'struct': types.String,
     'uniontype': types.String,
-    'decimal': TDWHiveDecimal,
+    'decimal': HiveDecimal,
 }
 
 
@@ -198,8 +198,8 @@ class PyCalciteDialect(default.DefaultDialect):
     name = 'pycalcite'
     driver = 'pycalcite'
 
-    preparer = TDWHiveIdentifierPreparer
-    statement_compiler = TDWHiveCompiler
+    preparer = HiveIdentifierPreparer
+    statement_compiler = HiveCompiler
     supports_views = True
     supports_alter = True
     supports_pk_autoincrement = False
@@ -212,7 +212,7 @@ class PyCalciteDialect(default.DefaultDialect):
     returns_unicode_strings = True
     description_encoding = None
     supports_multivalues_insert = True
-    type_compiler = TDWHiveTypeCompiler
+    type_compiler = HiveTypeCompiler
 
     default_paramstyle = 'pyformat'
 
@@ -244,8 +244,9 @@ class PyCalciteDialect(default.DefaultDialect):
             connection_object.reconnect()
         calcite_bridge = connection_object.conn
         schemas_list = calcite_bridge.getSchemaMetaInfo(None, None)
+        result = [str(schema.getSchemaName()) for schema in schemas_list]
         connection_object.close()
-        return [str(schema.getSchemaName()) for schema in schemas_list]
+        return result
 
     def get_view_names(self, connection, schema=None, **kw):
         # Hive does not provide functionality to query tableType
@@ -302,14 +303,14 @@ class PyCalciteDialect(default.DefaultDialect):
             connection_object = None
             calcite_bridge = connection.connection.connection.conn
         columns_list = calcite_bridge.getTableColumnsMetaInfo(None, schema, table_name, None)
-        if connection_object:
-            connection_object.close()
         result = [{
             'name': str(column.getColumnName()),
             'type': _type_map.get(column.getColumnType().toLowerCase(), types.NullType),
             'nullable': column.getNullable() != 0,
             'default': None
         } for column in columns_list]
+        if connection_object:
+            connection_object.close()
         return result
 
     def get_columns_old(self, connection, table_name, schema=None, **kw):
@@ -368,9 +369,10 @@ class PyCalciteDialect(default.DefaultDialect):
             connection_object = None
             calcite_bridge = connection.connection.connection.conn
         tables_list = calcite_bridge.getTablesMetaInfo(None, schema, None, ['TABLE'])
+        result = [str(table.getTableName()) for table in tables_list]
         if connection_object:
             connection_object.close()
-        return [str(table.getTableName()) for table in tables_list]
+        return result
 
     def do_rollback(self, dbapi_connection):
         # No transactions for Hive

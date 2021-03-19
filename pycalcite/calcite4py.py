@@ -160,6 +160,7 @@ class Cursor(object):
         operation = self._format_stmt_paras(operation, parameters)
         self._stmt = self._conn.conn.createStatement()
         # self._stmt.setQueryTimeout(30)
+        '''
         try:
             logger.debug('begin execute')
             # self._rs = self._stmt.executeQuery(operation)
@@ -177,6 +178,16 @@ class Cursor(object):
         except Exception as ex:
             logger.error(ex)
             raise ex
+        '''
+        logger.debug('begin execute')
+        # self._rs = self._stmt.executeQuery(operation)
+        flag = self._stmt.execute(operation)
+        update_count = self._stmt.getUpdateCount()
+        self._rs = self._stmt.getResultSet()
+        if self._rs:
+            self._rs_meta = self._rs.getMetaData()
+        logger.debug('flag=%s, updatecount=%s', flag, update_count)
+        return update_count
 
     def executemany(self, operation, seq_of_parameters):
         self._close_last()
