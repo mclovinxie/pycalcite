@@ -58,9 +58,7 @@ def thread_safe():
 
 __all__ = [
     'BINARY', 'Error', 'Connect', 'Connection',
-
     'DBAPISet', 'connect',
-
     'paramstyle', 'threadsafety', 'version_info',
     "NULL", "__version__",
 ]
